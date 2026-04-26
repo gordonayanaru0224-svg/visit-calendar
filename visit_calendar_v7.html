@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>訪問日カレンダー</title>
+<style>
+:root{
+  --green:#2E7D32;--green-bg:#E8F5E9;--green-bd:#A5D6A7;
+  --red:#C62828;--red-bg:#FFEBEE;
+  --blue:#1565C0;--blue-bg:#E3F2FD;
+  --gray:#F5F5F5;--gray2:#E0E0E0;--gray3:#9E9E9E;
+  --text:#1A1A1A;--text2:#666;--border:#E0E0E0;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,'Hiragino Sans','Yu Gothic UI',sans-serif;background:#EAEFF4;color:var(--text);min-height:100vh;padding-bottom:80px}
+.screen{display:none}.screen.active{display:block}
+.header{background:linear-gradient(135deg,#1B5E20,#43A047);color:white;padding:18px 16px 14px;text-align:center}
+.header h1{font-size:20px;font-weight:800}
+.header p{font-size:12px;opacity:.8;margin-top:2px}
+.tabbar{position:fixed;bottom:0;left:0;right:0;display:flex;background:white;border-top:1px solid var(--border);z-index:200;box-shadow:0 -2px 12px rgba(0,0,0,.08)}
+.tab{flex:1;height:60px;border:none;background:transparent;font-size:10px;font-weight:700;color:var(--gray3);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:inherit}
+.tab .icon{font-size:22px;line-height:1}
+.tab.on{color:var(--green)}
+.main{padding:14px}
+.card{background:white;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 8px rgba(0,0,0,.07)}
+.card-title{font-size:13px;font-weight:800;color:var(--green);margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid var(--green-bg)}
+.garden-chip{display:flex;align-items:center;gap:12px;padding:12px 14px;background:white;border:2px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer}
+.garden-chip.selected{border-color:var(--green);background:var(--green-bg)}
+.g-emoji{width:42px;height:42px;border-radius:10px;background:var(--gray);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.garden-chip.selected .g-emoji{background:var(--green-bd)}
+.g-name{font-size:15px;font-weight:800}
+.g-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.sel-bar{background:var(--green-bg);border:1.5px solid var(--green-bd);border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:12px;line-height:1.8;display:none}
+/* カレンダー */
+.cal-card{background:white;border-radius:16px;overflow:hidden;box-shadow:0 1px 8px rgba(0,0,0,.07);margin-bottom:10px}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #F0F0F0}
+.cal-nav h2{font-size:16px;font-weight:800}
+.nav-btn{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--border);background:var(--gray);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-dh{text-align:center;font-size:11px;font-weight:800;padding:8px 0;color:var(--gray3);background:#FAFAFA}
+.cal-dh.sun{color:#C62828}.cal-dh.sat{color:#1565C0}
+.cal-cell{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:default;border-top:1px solid #F5F5F5;position:relative;user-select:none;overflow:hidden}
+.cal-cell.empty{background:transparent;border:none}
+.cal-cell.no-visit{color:#CCC;font-weight:400;font-size:12px}
+.cal-cell.morning{background:#C62828;color:white;cursor:pointer}
+.cal-cell.afternoon{background:#1565C0;color:white;cursor:pointer}
+.cal-cell.both{background:#2E7D32;color:white;cursor:pointer}
+.cal-cell.morning:active,.cal-cell.afternoon:active,.cal-cell.both:active{opacity:.8}
+.cal-cell.today-ring{outline:3px solid #FF8F00;outline-offset:-3px;border-radius:4px}
+/* 予定入り */
+.cal-cell.has-reg{background:#37474F;color:white;cursor:default}
+.cal-cell .sub{font-size:8px;font-weight:500;margin-top:1px;opacity:.9;text-align:center;line-height:1.2;max-width:100%;overflow:hidden}
+.legend{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:10px 12px 12px;border-top:1px solid #F5F5F5}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.legend-dot{width:14px;height:14px;border-radius:4px}
+/* フォーム */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:5px}
+.field input[type=text],.field input[type=number]{width:100%;height:44px;padding:0 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-family:inherit;color:var(--text);background:#FAFAFA}
+.field input:focus{outline:none;border-color:var(--green);background:white}
+.field select{width:100%;height:44px;padding:0 12px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;font-family:inherit;color:var(--text);background:#FAFAFA;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.day-checks{display:flex;gap:6px;flex-wrap:wrap}
+.dc{display:none}
+.dl{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;border:2px solid var(--border);font-size:14px;font-weight:700;cursor:pointer;color:#BBB;background:#FAFAFA;user-select:none}
+.dc:checked+.dl{background:var(--green);color:white;border-color:var(--green)}
+.dc.ng:checked+.dl{background:var(--red);color:white;border-color:var(--red)}
+.ng-block{background:#FFF8F8;border:2px solid #FFCDD2;border-radius:14px;padding:14px;margin-bottom:8px}
+.ng-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:13px;font-weight:800;color:var(--red)}
+.btn-del-ng{border:none;background:var(--red-bg);color:var(--red);font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:8px;font-family:inherit}
+.btn-add-ng{width:100%;height:46px;border:2px dashed #FFCDD2;border-radius:12px;background:transparent;color:var(--red);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+/* 曜日別時間 */
+.day-time-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #FFF0F0;flex-wrap:wrap}
+.day-time-row:last-child{border-bottom:none}
+.day-badge{width:36px;height:36px;border-radius:8px;background:#FFCDD2;color:var(--red);font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.day-time-row select{flex:1;height:36px;font-size:13px;min-width:80px}
+.day-time-sep{font-size:12px;color:#aaa}
+.btn-main{width:100%;height:50px;border-radius:12px;border:none;font-size:16px;font-weight:700;cursor:pointer;background:var(--green);color:white;font-family:inherit;box-shadow:0 4px 14px rgba(46,125,50,.3)}
+.btn-main:active{opacity:.85}
+.btn-sub{width:100%;height:44px;border-radius:10px;border:1.5px solid var(--border);background:white;font-size:14px;font-weight:700;color:var(--text2);cursor:pointer;margin-top:8px;font-family:inherit}
+.hint{background:var(--blue-bg);border:1.5px solid #90CAF9;border-radius:12px;padding:12px 14px;font-size:13px;color:#1A237E;margin-bottom:14px;line-height:1.6}
+.warn-hint{background:#FFF8F8;border-left:4px solid var(--red);padding:8px 12px;font-size:12px;color:var(--red);margin-bottom:12px;border-radius:0 8px 8px 0;line-height:1.6}
+.info-bar{background:var(--green-bg);border:1.5px solid var(--green-bd);border-radius:12px;padding:12px 14px;font-size:13px;margin-bottom:12px;line-height:1.8;display:none}
+/* モーダル */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:500;opacity:0;visibility:hidden;transition:opacity .25s}
+.overlay.show{opacity:1;visibility:visible}
+.sheet{background:white;border-radius:24px 24px 0 0;padding:22px 18px 40px;width:100%;transform:translateY(100%);transition:transform .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 -4px 32px rgba(0,0,0,.15)}
+.overlay.show .sheet{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;background:var(--gray2);border-radius:2px;margin:0 auto 18px}
+.sheet h3{font-size:18px;font-weight:900;margin-bottom:3px}
+.sheet-sub{font-size:13px;color:var(--gray3);margin-bottom:14px}
+.move-box{background:var(--gray);border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:14px;line-height:1.7}
+.move-ok{color:var(--green);font-weight:700}
+.move-ng{color:var(--red);font-weight:700}
+.time-choice{display:block;width:100%;padding:16px 18px;border-radius:12px;border:2.5px solid;background:#FAFAFA;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;text-align:left;font-family:inherit}
+.time-choice.am{border-color:var(--red);color:var(--red)}
+.time-choice.am:active{background:var(--red-bg)}
+.time-choice.pm{border-color:var(--blue);color:var(--blue)}
+.time-choice.pm:active{background:var(--blue-bg)}
+/* 時間選択ボタン */
+.time-sel-section{background:var(--gray);border-radius:12px;padding:14px;margin-bottom:12px}
+.time-sel-section h4{font-size:13px;font-weight:700;margin-bottom:10px}
+.time-sel-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.time-sel-row label{font-size:12px;color:var(--text2);width:30px;flex-shrink:0}
+.time-sel-row select{flex:1;height:40px;font-size:14px;border:1.5px solid var(--border);border-radius:10px;background:white;font-family:inherit;padding:0 8px}
+.sheet-msg{text-align:center;font-size:14px;font-weight:700;min-height:22px;margin-top:8px}
+.cancel-btn{width:100%;height:46px;border-radius:10px;border:1.5px solid var(--border);background:white;font-size:14px;font-weight:700;color:var(--gray3);cursor:pointer;margin-top:8px;font-family:inherit}
+/* 編集オーバーレイ */
+.edit-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:600;opacity:0;visibility:hidden;transition:opacity .2s}
+.edit-overlay.show{opacity:1;visibility:visible}
+.edit-sheet{background:white;border-radius:24px 24px 0 0;padding:20px 18px 40px;width:100%;max-height:90vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.34,1.56,.64,1)}
+.edit-overlay.show .edit-sheet{transform:translateY(0)}
+/* 一覧 */
+.list-item{background:white;border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+.list-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.list-actions{display:flex;gap:8px}
+.btn-edit{padding:8px 14px;border-radius:10px;border:2px solid var(--green);background:var(--green-bg);color:var(--green);font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+.btn-delete{padding:8px 14px;border-radius:10px;border:2px solid #FFCDD2;background:#FFF8F8;color:var(--red);font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+.ng-tag{display:inline-block;font-size:11px;color:var(--red);background:#FFF8F8;border:1px solid #FFCDD2;border-radius:6px;padding:3px 8px;margin:3px 3px 0 0;font-weight:700}
+.sched-item{display:flex;align-items:center;justify-content:space-between;padding:14px;background:white;border:2px solid var(--border);border-radius:14px;margin-bottom:10px}
+.btn-del-sched{border:none;background:#FFF8F8;color:var(--red);font-size:20px;cursor:pointer;width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.empty-state{text-align:center;padding:48px 16px;color:#CCC}
+.empty-icon{font-size:52px;margin-bottom:14px}
+#save-msg{min-height:24px;font-size:15px;text-align:center;margin-top:12px;font-weight:800}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📅 訪問日カレンダー</h1>
+  <p>保育所等訪問支援 スケジュール管理</p>
+</div>
+
+<div class="main">
+
+<!-- カレンダー -->
+<div class="screen active" id="screen-cal">
+  <div style="font-size:13px;font-weight:800;color:#888;margin-bottom:10px">▼ 園・学校を選んでください</div>
+  <div id="garden-chips"></div>
+  <div class="info-bar" id="sel-bar"></div>
+  <div class="cal-card">
+    <div class="cal-nav">
+      <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+      <h2 id="month-label"></h2>
+      <button class="nav-btn" onclick="changeMonth(1)">›</button>
+    </div>
+    <div class="cal-grid" id="cal-h"></div>
+    <div class="cal-grid" id="cal-b"></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#C62828"></div>午前OK</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1565C0"></div>午後OK</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2E7D32"></div>終日OK</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#37474F"></div>予定入り</div>
+    </div>
+  </div>
+  <div style="text-align:center;font-size:11px;color:#BBB;margin-top:4px">色のついた日をタップして予定を登録</div>
+</div>
+
+<!-- 登録フォーム -->
+<div class="screen" id="screen-reg">
+  <div class="hint">💡 <strong>個人名は入力しません。</strong>園・学校名で管理するので個人情報の心配がありません。</div>
+  <div class="card">
+    <div class="card-title">🏫 訪問先の情報</div>
+    <div class="field"><label>園・学校・事業所の名前 ＊</label><input type="text" id="r-name" placeholder="例：さくら幼稚園"></div>
+    <div class="field"><label>📝 メモ（担当者・場所など、任意）</label><input type="text" id="r-addr" placeholder="例：担当：山田先生"></div>
+    <div class="field"><label>🚗 事務所からの移動時間（分）＊</label><input type="number" id="r-travel" placeholder="例：20" min="1" max="120" inputmode="numeric"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">📅 訪問できる曜日と時間</div>
+    <div class="field">
+      <label>受け入れ可能な曜日 ＊</label>
+      <div class="day-checks" id="r-days">
+        <input class="dc" type="checkbox" id="d月" value="月"><label class="dl" for="d月">月</label>
+        <input class="dc" type="checkbox" id="d火" value="火"><label class="dl" for="d火">火</label>
+        <input class="dc" type="checkbox" id="d水" value="水"><label class="dl" for="d水">水</label>
+        <input class="dc" type="checkbox" id="d木" value="木"><label class="dl" for="d木">木</label>
+        <input class="dc" type="checkbox" id="d金" value="金"><label class="dl" for="d金">金</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>🌅 午前の受け入れ時間（ない場合は「なし」）</label>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div id="ts-am-s-wrap" style="flex:1"></div>
+        <span style="color:#aaa;font-size:13px">〜</span>
+        <div id="ts-am-e-wrap" style="flex:1"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>🌇 午後の受け入れ時間（ない場合は「なし」）</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="ts-pm-s-wrap" style="flex:1"></div>
+        <span style="color:#aaa;font-size:13px">〜</span>
+        <div id="ts-pm-e-wrap" style="flex:1"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">🚫 児発・放デイの利用情報</div>
+    <div class="warn-hint">利用曜日と時間を登録すると、その時間帯が重なる日はNGになります。曜日ごとに時間を設定できます。</div>
+    <div id="ng-list"></div>
+    <button class="btn-add-ng" onclick="addNgRow('ng-list','ng')">＋ 事業所を追加する</button>
+  </div>
+  <button class="btn-main" style="margin-top:4px" onclick="saveGarden()">💾　登録する</button>
+  <button class="btn-sub" onclick="clearForm()">入力をクリア</button>
+  <div id="save-msg"></div>
+</div>
+
+<!-- 一覧 -->
+<div class="screen" id="screen-list">
+  <div class="hint">✏️ 修正ボタンで情報を変更できます</div>
+  <div id="list-body"></div>
+</div>
+
+<!-- 予定一覧 -->
+<div class="screen" id="screen-sched">
+  <div class="hint">登録した訪問予定の一覧です。✕ を押すと削除されカレンダーに候補日が復活します。</div>
+  <div id="sched-body"></div>
+</div>
+
+</div>
+
+<div class="tabbar">
+  <button class="tab on" onclick="goTab('cal',this)"><span class="icon">🗓</span>カレンダー</button>
+  <button class="tab" onclick="goTab('reg',this)"><span class="icon">➕</span>園を登録</button>
+  <button class="tab" onclick="goTab('list',this)"><span class="icon">🏫</span>一覧・修正</button>
+  <button class="tab" onclick="goTab('sched',this)"><span class="icon">📋</span>予定一覧</button>
+</div>
+
+<!-- 訪問登録モーダル -->
+<div class="overlay" id="modal" onclick="bgClose(event)">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h3 id="m-title"></h3>
+    <div class="sheet-sub" id="m-sub"></div>
+    <div id="m-move" style="display:none" class="move-box"></div>
+    <div id="m-btns"></div>
+    <div class="sheet-msg" id="m-msg"></div>
+    <button class="cancel-btn" onclick="closeModal()">キャンセル</button>
+  </div>
+</div>
+
+<!-- 編集 -->
+<div class="edit-overlay" id="edit-overlay" onclick="bgCloseEdit(event)">
+  <div class="edit-sheet">
+    <div class="sheet-handle"></div>
+    <div style="font-size:18px;font-weight:800;color:var(--green);margin-bottom:16px">✏️ 情報を修正する</div>
+    <div id="edit-form-body"></div>
+    <button class="btn-main" style="margin-top:8px" onclick="saveEdit()">💾　保存する</button>
+    <button class="btn-sub" onclick="closeEdit()">キャンセル</button>
+    <div id="edit-msg" style="min-height:22px;font-size:14px;text-align:center;margin-top:10px;font-weight:800"></div>
+  </div>
+</div>
+
+<script>
+var DB=[];var REG={};
+try{DB=JSON.parse(localStorage.getItem('vm_v7_db')||'[]');}catch(e){}
+try{REG=JSON.parse(localStorage.getItem('vm_v7_reg')||'{}');}catch(e){}
+var SEL=null;
+var UI={y:new Date().getFullYear(),m:new Date().getMonth()};
+var DJ=['日','月','火','水','木','金','土'];
+var PND=null;var editingId=null;var ngCount=0;
+var EMOJI=['🌸','🌻','☁️','🎒','🌈','⭐','🎠','🌺','🏡','🎨','🌿','🍀'];
+
+function svDB(){try{localStorage.setItem('vm_v7_db',JSON.stringify(DB));}catch(e){}}
+function svReg(){try{localStorage.setItem('vm_v7_reg',JSON.stringify(REG));}catch(e){}}
+function v(id){var e=document.getElementById(id);return e?(e.value||'').trim():'';}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function pT(s){if(!s)return null;var m=s.match(/(\d{1,2}):(\d{2})/);return m?+m[1]*60+ +m[2]:null;}
+function fM(m){return(''+Math.floor(m/60)).padStart(2,'0')+':'+(''+m%60).padStart(2,'0');}
+function fD(d){return d.getFullYear()+'/'+(''+(d.getMonth()+1)).padStart(2,'0')+'/'+(''+(d.getDate())).padStart(2,'0');}
+function gC(gid){var r=[];document.querySelectorAll('#'+gid+' .dc:checked').forEach(function(c){r.push(c.value);});return r;}
+function getTimeSel(id){var e=document.getElementById(id);return e?e.value:'';}
+
+/* ── タイムセレクター ── */
+function makeHourOpts(id,def){
+  var opts='<option value="">なし</option>';
+  for(var h=7;h<=19;h++){
+    ['00','30'].forEach(function(mm){
+      var val=(h+'').padStart(2,'0')+':'+mm;
+      var sel=(def===val)?'selected':'';
+      opts+='<option value="'+val+'" '+sel+'>'+h+'時'+(mm==='30'?'30分':'')+'</option>';
+    });
+  }
+  return '<select id="'+id+'">'+opts+'</select>';
+}
+function buildTimeSel(wid,sid,def){
+  var w=document.getElementById(wid);if(w)w.innerHTML=makeHourOpts(sid,def||'');
+}
+function buildAllTimeSelectors(amS,amE,pmS,pmE){
+  buildTimeSel('ts-am-s-wrap','r-am-s',amS||'');
+  buildTimeSel('ts-am-e-wrap','r-am-e',amE||'');
+  buildTimeSel('ts-pm-s-wrap','r-pm-s',pmS||'');
+  buildTimeSel('ts-pm-e-wrap','r-pm-e',pmE||'');
+}
+
+/* ── タブ ── */
+function goTab(id,btn){
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on');});
+  document.getElementById('screen-'+id).classList.add('active');btn.classList.add('on');
+  if(id==='cal'){renderChips();renderCal();}
+  if(id==='reg'){buildAllTimeSelectors();}
+  if(id==='list'){renderList();}
+  if(id==='sched'){renderSched();}
+}
+
+/* ── NGブロック（曜日ごとに時間入力） ── */
+function addNgRow(cid,pfx,existingData){
+  ngCount++;var i=ngCount;
+  var n=existingData||{name:'',dayTimes:{}};
+  var div=document.createElement('div');
+  div.className='ng-block';div.id=pfx+'-row-'+i;
+  // 曜日チェック部分
+  var daysHtml=['月','火','水','木','金'].map(function(d){
+    var chk=(n.days&&n.days.includes(d))?'checked':'';
+    return '<input class="dc ng" type="checkbox" id="'+pfx+i+d+'" value="'+d+'" '+chk+' onchange="updateDayTimeRows(\''+pfx+'\','+i+')">'
+      +'<label class="dl" for="'+pfx+i+d+'">'+d+'</label>';
+  }).join('');
+  div.innerHTML='<div class="ng-head"><span>🚫 事業所 '+i+'</span>'
+    +'<button class="btn-del-ng" onclick="removeNg(\''+pfx+'-row-'+i+'\')">✕ 削除</button></div>'
+    +'<div class="field"><label>事業所の名前（任意）</label><input type="text" id="'+pfx+'-name-'+i+'" value="'+esc(n.name||'')+'" placeholder="例：ぐるんぱ児発"></div>'
+    +'<div class="field"><label>利用している曜日（タップして選ぶ）</label>'
+    +'<div class="day-checks" id="'+pfx+'-days-'+i+'">'+daysHtml+'</div></div>'
+    +'<div class="field" id="'+pfx+'-daytime-wrap-'+i+'">'
+    +'<label>曜日ごとの利用時間</label>'
+    +'<div id="'+pfx+'-daytime-'+i+'"></div></div>';
+  document.getElementById(cid).appendChild(div);
+  // 既存データの曜日時間を反映
+  if(n.days&&n.days.length)updateDayTimeRows(pfx,i,n.dayTimes);
+}
+
+function updateDayTimeRows(pfx,i,existingTimes){
+  var days=[];
+  document.querySelectorAll('#'+pfx+'-days-'+i+' .dc:checked').forEach(function(c){days.push(c.value);});
+  var wrap=document.getElementById(pfx+'-daytime-'+i);
+  if(!wrap)return;
+  if(!days.length){wrap.innerHTML='<div style="font-size:12px;color:#aaa;padding:4px 0">まず曜日を選んでください</div>';return;}
+  var existing=existingTimes||{};
+  wrap.innerHTML=days.map(function(d){
+    var s=(existing[d]&&existing[d].s)||'';
+    var e2=(existing[d]&&existing[d].e)||'';
+    return'<div class="day-time-row">'
+      +'<div class="day-badge">'+d+'</div>'
+      +makeHourOpts(pfx+'-s-'+i+'-'+d,s)
+      +'<span class="day-time-sep">〜</span>'
+      +makeHourOpts(pfx+'-e-'+i+'-'+d,e2)
+      +'</div>';
+  }).join('');
+}
+
+function removeNg(id){var e=document.getElementById(id);if(e)e.remove();}
+
+function collectNg(cid,pfx){
+  var rows=[];
+  document.querySelectorAll('#'+cid+' .ng-block').forEach(function(el){
+    var m=el.id.match(/\d+$/);if(!m)return;
+    var i=m[0];
+    var days=[];
+    el.querySelectorAll('.dc:checked').forEach(function(c){days.push(c.value);});
+    var name=(document.getElementById(pfx+'-name-'+i)||{}).value||'';
+    var dayTimes={};
+    days.forEach(function(d){
+      var s=getTimeSel(pfx+'-s-'+i+'-'+d);
+      var e2=getTimeSel(pfx+'-e-'+i+'-'+d);
+      dayTimes[d]={s:s,e:e2};
+    });
+    if(days.length)rows.push({name:name.trim(),days:days,dayTimes:dayTimes});
+  });
+  return rows;
+}
+
+/* ── 登録 ── */
+function saveGarden(){
+  var name=v('r-name'),addr=v('r-addr'),travel=parseInt(v('r-travel'))||0;
+  var days=gC('r-days');
+  var amS=getTimeSel('r-am-s'),amE=getTimeSel('r-am-e');
+  var pmS=getTimeSel('r-pm-s'),pmE=getTimeSel('r-pm-e');
+  var ngList=collectNg('ng-list','ng');
+  if(!name){alert('園・事業所の名前を入力してください');return;}
+  if(!days.length){alert('受け入れ可能な曜日を選んでください');return;}
+  if(!travel){alert('移動時間（分）を入力してください');return;}
+  if(!amS&&!pmS){alert('午前か午後の受け入れ開始時間を選んでください');return;}
+  DB.push({id:Date.now(),name:name,addr:addr,travel:travel,days:days,
+    morning:(amS&&amE)?amS+'-'+amE:null,
+    afternoon:(pmS&&pmE)?pmS+'-'+pmE:null,
+    ngList:ngList,emoji:EMOJI[DB.length%EMOJI.length]});
+  svDB();
+  document.getElementById('save-msg').innerHTML='<span style="color:var(--green)">✅ '+esc(name)+'を登録しました！</span>';
+  clearForm();
+  setTimeout(function(){document.getElementById('save-msg').innerHTML='';},2500);
+}
+function clearForm(){
+  ['r-name','r-addr','r-travel'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+  document.querySelectorAll('#r-days .dc').forEach(function(c){c.checked=false;});
+  buildAllTimeSelectors();
+  document.getElementById('ng-list').innerHTML='';ngCount=0;
+}
+
+/* ── 削除・修正 ── */
+function deleteGarden(id){
+  if(!confirm('この園を削除しますか？\n登録済みの訪問予定も一緒に削除されます。'))return;
+  DB=DB.filter(function(g){return g.id!==id;});
+  Object.keys(REG).forEach(function(k){if(k.indexOf('-g'+id)!==-1)delete REG[k];});
+  svDB();svReg();
+  if(SEL&&SEL.id===id)SEL=null;
+  renderList();renderChips();renderCal();
+}
+
+function openEdit(id){
+  var g=DB.find(function(x){return x.id===id;});if(!g)return;
+  editingId=id;ngCount=0;
+  var dHtml=['月','火','水','木','金'].map(function(d){
+    var chk=g.days.includes(d)?'checked':'';
+    return'<input class="dc" type="checkbox" id="ed'+d+'" value="'+d+'" '+chk+'><label class="dl" for="ed'+d+'">'+d+'</label>';
+  }).join('');
+  var amP=g.morning?g.morning.split('-'):['',''];
+  var pmP=g.afternoon?g.afternoon.split('-'):['',''];
+  var ngHtml='';
+  if(g.ngList&&g.ngList.length){
+    g.ngList.forEach(function(n){
+      // 一時的にngCountを使わずappendChildで追加するため、ここでHTMLを構築
+      ngCount++;var i=ngCount;
+      var daysHtml2=['月','火','水','木','金'].map(function(d){
+        var chk=(n.days&&n.days.includes(d))?'checked':'';
+        return'<input class="dc ng" type="checkbox" id="en'+i+d+'" value="'+d+'" '+chk+' onchange="updateDayTimeRows(\'en\','+i+')">'
+          +'<label class="dl" for="en'+i+d+'">'+d+'</label>';
+      }).join('');
+      var dayTimesHtml='';
+      if(n.days&&n.days.length){
+        dayTimesHtml=n.days.map(function(d){
+          var s=(n.dayTimes&&n.dayTimes[d]&&n.dayTimes[d].s)||'';
+          var e2=(n.dayTimes&&n.dayTimes[d]&&n.dayTimes[d].e)||'';
+          return'<div class="day-time-row">'
+            +'<div class="day-badge">'+d+'</div>'
+            +makeHourOpts('en-s-'+i+'-'+d,s)
+            +'<span class="day-time-sep">〜</span>'
+            +makeHourOpts('en-e-'+i+'-'+d,e2)
+            +'</div>';
+        }).join('');
+      }
+      ngHtml+='<div class="ng-block" id="en-row-'+i+'">'
+        +'<div class="ng-head"><span>🚫 事業所 '+i+'</span>'
+        +'<button class="btn-del-ng" onclick="removeNg(\'en-row-'+i+'\')">✕ 削除</button></div>'
+        +'<div class="field"><label>事業所名</label><input type="text" id="en-name-'+i+'" value="'+esc(n.name||'')+'" placeholder="例：ぐるんぱ児発"></div>'
+        +'<div class="field"><label>利用している曜日</label>'
+        +'<div class="day-checks" id="en-days-'+i+'">'+daysHtml2+'</div></div>'
+        +'<div class="field" id="en-daytime-wrap-'+i+'"><label>曜日ごとの利用時間</label>'
+        +'<div id="en-daytime-'+i+'">'+dayTimesHtml+'</div></div>'
+        +'</div>';
+    });
+  }
+  document.getElementById('edit-form-body').innerHTML=
+    '<div class="card" style="margin-bottom:12px"><div class="card-title">🏫 基本情報</div>'
+    +'<div class="field"><label>名前 ＊</label><input type="text" id="ed-name" value="'+esc(g.name)+'"></div>'
+    +'<div class="field"><label>📝 メモ</label><input type="text" id="ed-addr" value="'+esc(g.addr||'')+'"></div>'
+    +'<div class="field"><label>🚗 移動時間（分）</label><input type="number" id="ed-travel" value="'+g.travel+'" min="1" max="120" inputmode="numeric"></div>'
+    +'</div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-title">📅 受け入れ情報</div>'
+    +'<div class="field"><label>受け入れ可能な曜日</label><div class="day-checks" id="ed-days">'+dHtml+'</div></div>'
+    +'<div class="field"><label>🌅 午前　開始〜終了</label>'
+    +'<div style="display:flex;align-items:center;gap:8px">'
+    +makeHourOpts('ed-am-s',amP[0])+'<span style="color:#aaa">〜</span>'+makeHourOpts('ed-am-e',amP[1]||'')
+    +'</div></div>'
+    +'<div class="field"><label>🌇 午後　開始〜終了</label>'
+    +'<div style="display:flex;align-items:center;gap:8px">'
+    +makeHourOpts('ed-pm-s',pmP[0])+'<span style="color:#aaa">〜</span>'+makeHourOpts('ed-pm-e',pmP[1]||'')
+    +'</div></div></div>'
+    +'<div class="card" style="margin-bottom:12px"><div class="card-title">🚫 児発・放デイ情報</div>'
+    +'<div id="en-list">'+ngHtml+'</div>'
+    +'<button class="btn-add-ng" onclick="addNgRow(\'en-list\',\'en\')">＋ 事業所を追加</button>'
+    +'</div>';
+  document.getElementById('edit-overlay').classList.add('show');
+}
+
+function saveEdit(){
+  var g=DB.find(function(x){return x.id===editingId;});if(!g)return;
+  var name=v('ed-name'),addr=v('ed-addr'),travel=parseInt(v('ed-travel'))||0;
+  var days=gC('ed-days');
+  var amS=getTimeSel('ed-am-s'),amE=getTimeSel('ed-am-e');
+  var pmS=getTimeSel('ed-pm-s'),pmE=getTimeSel('ed-pm-e');
+  var ngList=collectNg('en-list','en');
+  if(!name){alert('名前は必須です');return;}
+  if(!days.length){alert('受け入れ曜日を選んでください');return;}
+  if(!travel){alert('移動時間を入力してください');return;}
+  g.name=name;g.addr=addr;g.travel=travel;g.days=days;
+  g.morning=(amS&&amE)?amS+'-'+amE:null;
+  g.afternoon=(pmS&&pmE)?pmS+'-'+pmE:null;
+  g.ngList=ngList;
+  svDB();
+  if(SEL&&SEL.id===editingId)SEL=g;
+  document.getElementById('edit-msg').innerHTML='<span style="color:var(--green)">✅ 保存しました！</span>';
+  setTimeout(function(){closeEdit();renderList();renderChips();renderCal();},1000);
+}
+function closeEdit(){document.getElementById('edit-overlay').classList.remove('show');document.getElementById('edit-msg').innerHTML='';editingId=null;}
+function bgCloseEdit(e){if(e.target===document.getElementById('edit-overlay'))closeEdit();}
+
+/* ── チップ ── */
+function renderChips(){
+  var el=document.getElementById('garden-chips');
+  if(!DB.length){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">🏫</div><p style="font-size:14px;color:#CCC">「園を登録」タブから<br>まず登録してください</p></div>';
+    document.getElementById('sel-bar').style.display='none';return;
+  }
+  el.innerHTML=DB.map(function(g){
+    var sel=SEL&&SEL.id===g.id;
+    return'<div class="garden-chip'+(sel?' selected':'')+'" onclick="selGarden('+g.id+')">'
+      +'<div class="g-emoji">'+g.emoji+'</div>'
+      +'<div style="flex:1"><div class="g-name">'+esc(g.name)+'</div>'
+      +'<div class="g-sub">'+g.days.join('・')+'曜'+(g.addr?' · '+esc(g.addr):'')+'</div></div>'
+      +(sel?'<span style="color:var(--green);font-size:24px;font-weight:900">✓</span>':'<span style="color:#DDD;font-size:22px">›</span>')
+      +'</div>';
+  }).join('');
+  renderSelBar();
+}
+function selGarden(id){SEL=DB.find(function(g){return g.id===id;})||null;renderChips();renderCal();}
+function renderSelBar(){
+  var el=document.getElementById('sel-bar');
+  if(!SEL){el.style.display='none';return;}
+  var g=SEL,t=[];
+  if(g.morning)t.push('🌅 '+g.morning);if(g.afternoon)t.push('🌇 '+g.afternoon);
+  var ng='';
+  if(g.ngList&&g.ngList.length){
+    ng='<br>🚫 '+g.ngList.map(function(n){
+      var times=Object.keys(n.dayTimes||{}).map(function(d){
+        var dt=n.dayTimes[d];return d+'曜'+(dt.s&&dt.e?' '+dt.s+'〜'+dt.e:'');
+      }).join('、');
+      return (n.name?esc(n.name)+': ':'')+times;
+    }).join('　');
+  }
+  el.style.display='block';
+  el.innerHTML='<b>'+esc(g.name)+'</b>　受入: '+g.days.join('・')+'曜　'+t.join('　')+ng;
+}
+
+/* ── カレンダー ── */
+function getStatus(g,date){
+  var dow=date.getDay();if(dow===0||dow===6)return null;
+  var dj=DJ[dow];if(!g.days.includes(dj))return null;
+  var ds=fD(date);
+  var canAM=!!g.morning&&!REG[ds+'-am-g'+g.id];
+  var canPM=!!g.afternoon&&!REG[ds+'-pm-g'+g.id];
+  if(g.ngList&&g.ngList.length){
+    g.ngList.forEach(function(n){
+      if(!n.days||!n.days.includes(dj))return;
+      var dt=n.dayTimes&&n.dayTimes[dj];
+      var ngS=dt?pT(dt.s):null;var ngE=dt?pT(dt.e):null;
+      if(ngS&&ngE){
+        if(canAM&&g.morning){var aS=pT(g.morning.split('-')[0]),aE=pT(g.morning.split('-')[1]);if(!(aE<=ngS||aS>=ngE))canAM=false;}
+        if(canPM&&g.afternoon){var pS=pT(g.afternoon.split('-')[0]),pE=pT(g.afternoon.split('-')[1]);if(!(pE<=ngS||pS>=ngE))canPM=false;}
+      }else{canAM=false;canPM=false;}
+    });
+  }
+  if(canAM&&canPM)return'both';if(canAM)return'morning';if(canPM)return'afternoon';return null;
+}
+
+function changeMonth(d){UI.m+=d;if(UI.m>11){UI.m=0;UI.y++;}if(UI.m<0){UI.m=11;UI.y--;}renderCal();}
+
+function renderCal(){
+  document.getElementById('month-label').textContent=UI.y+'年'+(UI.m+1)+'月';
+  var hEl=document.getElementById('cal-h');hEl.innerHTML='';
+  ['日','月','火','水','木','金','土'].forEach(function(d,i){
+    var e=document.createElement('div');e.className='cal-dh'+(i===0?' sun':i===6?' sat':'');e.textContent=d;hEl.appendChild(e);
+  });
+  var body=document.getElementById('cal-b');body.innerHTML='';
+  var first=new Date(UI.y,UI.m,1).getDay();var last=new Date(UI.y,UI.m+1,0).getDate();
+  var today=new Date();today.setHours(0,0,0,0);
+  for(var i=0;i<first;i++){var e=document.createElement('div');e.className='cal-cell empty';body.appendChild(e);}
+  for(var d=1;d<=last;d++){
+    var dt=new Date(UI.y,UI.m,d);var ds=fD(dt);
+    var cell=document.createElement('div');
+
+    // この日の全ての登録済み予定を確認（全園）
+    var allRegsForDay=Object.keys(REG).filter(function(k){return k.startsWith(ds+'-');});
+    // 現在選択中の園の予定
+    var selReg=SEL?allRegsForDay.filter(function(k){return k===ds+'-am-g'+SEL.id||k===ds+'-pm-g'+SEL.id;}):[];
+
+    if(selReg.length>0){
+      // 選択中の園の予定が入っている → 登録済み表示
+      cell.className='cal-cell has-reg';
+      var times=selReg.map(function(k){return REG[k].customTime||REG[k].time;}).join('\n');
+      cell.innerHTML='<span style="font-size:11px;font-weight:800">'+d+'</span>'
+        +'<span class="sub">'+times.split('\n').map(function(t){return t;}).join('<br>')+'</span>';
+    } else if(allRegsForDay.length>0&&SEL){
+      // 他の園の予定が入っているが選択中の園は空き → 他園予定を薄く表示しつつ自分の状態を表示
+      var st=getStatus(SEL,dt);
+      if(!st){
+        cell.className='cal-cell no-visit';
+        cell.textContent=d;
+        // 他の予定を小さく表示
+        var otherText=allRegsForDay.map(function(k){
+          var r=REG[k];return r.gardenName+'('+r.customTime+')';
+        }).join('\n');
+        cell.title=otherText;
+        // 他園の予定マーク
+        var dot=document.createElement('div');
+        dot.style.cssText='position:absolute;top:3px;right:3px;width:6px;height:6px;background:#FF8F00;border-radius:50%';
+        cell.appendChild(dot);
+      } else {
+        var cls=st==='both'?'both':st==='morning'?'morning':'afternoon';
+        cell.className='cal-cell '+cls;
+        var sub=st==='morning'?'午前':st==='afternoon'?'午後':'終日';
+        cell.innerHTML='<span>'+d+'</span><span class="sub">'+sub+'</span>';
+        // 他園の予定マーク
+        var dot=document.createElement('div');
+        dot.style.cssText='position:absolute;top:3px;right:3px;width:6px;height:6px;background:#FF8F00;border-radius:50%';
+        cell.appendChild(dot);
+        (function(x,s){cell.onclick=function(){openModal(x,s);};})(dt,st);
+      }
+    } else if(SEL){
+      var st=getStatus(SEL,dt);
+      if(!st){cell.className='cal-cell no-visit';cell.textContent=d;}
+      else{
+        var cls=st==='both'?'both':st==='morning'?'morning':'afternoon';
+        cell.className='cal-cell '+cls;
+        var sub=st==='morning'?'午前':st==='afternoon'?'午後':'終日';
+        cell.innerHTML='<span>'+d+'</span><span class="sub">'+sub+'</span>';
+        (function(x,s){cell.onclick=function(){openModal(x,s);};})(dt,st);
+      }
+    } else {
+      cell.className='cal-cell no-visit';cell.textContent=d;
+    }
+    if(dt.getTime()===today.getTime())cell.classList.add('today-ring');
+    body.appendChild(cell);
+  }
+}
+
+/* ── モーダル（時間選択付き） ── */
+function bgClose(e){if(e.target===document.getElementById('modal'))closeModal();}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+function openModal(date,status){
+  PND={date:date,status:status};var g=SEL;
+  var ds=fD(date),dj=DJ[date.getDay()];
+  document.getElementById('m-title').textContent=ds+'（'+dj+'）';
+  document.getElementById('m-sub').textContent=g.name+' の訪問予定を登録します';
+  document.getElementById('m-msg').textContent='';
+  // 移動チェック
+  var mi=document.getElementById('m-move');
+  var prevEnd=null;
+  Object.keys(REG).forEach(function(k){
+    if(k.startsWith(ds+'-')&&REG[k].end>=(prevEnd||0))prevEnd=REG[k].end;
+  });
+  if(prevEnd!==null){
+    var arr=prevEnd+g.travel;
+    var chkT=status==='afternoon'?pT(g.afternoon.split('-')[0]):pT(g.morning.split('-')[0]);
+    var ok=chkT>=arr;
+    mi.style.display='block';
+    mi.innerHTML='前の予定終了: '+fM(prevEnd)+'　🚗 移動 '+g.travel+'分　→　到着: <b>'+fM(arr)+'</b><br>'
+      +'<span class="'+(ok?'move-ok':'move-ng')+'">'+(ok?'✅ 間に合います！':'⚠️ 時間が少し厳しいかもしれません')+'</span>';
+  }else{mi.style.display='none';}
+
+  // 時間選択UI
+  var html='';
+  if(status==='morning'||status==='both'){
+    var amP=g.morning.split('-');
+    html+='<div class="time-sel-section">'
+      +'<h4>🌅 午前の訪問時間</h4>'
+      +'<div class="time-sel-row"><label>開始</label>'+makeHourOpts('sel-am-s',amP[0])+'</div>'
+      +'<div class="time-sel-row"><label>終了</label>'+makeHourOpts('sel-am-e',amP[1]||amP[0])+'</div>'
+      +'<button class="time-choice am" onclick="doReg(\'am\')">🌅 午前で登録する</button>'
+      +'</div>';
+  }
+  if(status==='afternoon'||status==='both'){
+    var pmP=g.afternoon.split('-');
+    html+='<div class="time-sel-section">'
+      +'<h4>🌇 午後の訪問時間</h4>'
+      +'<div class="time-sel-row"><label>開始</label>'+makeHourOpts('sel-pm-s',pmP[0])+'</div>'
+      +'<div class="time-sel-row"><label>終了</label>'+makeHourOpts('sel-pm-e',pmP[1]||pmP[0])+'</div>'
+      +'<button class="time-choice pm" onclick="doReg(\'pm\')">🌇 午後で登録する</button>'
+      +'</div>';
+  }
+  document.getElementById('m-btns').innerHTML=html;
+  document.getElementById('modal').classList.add('show');
+}
+
+function doReg(ampm){
+  var g=SEL,date=PND.date,ds=fD(date),dj=DJ[date.getDay()];
+  var sM,eM,customTime;
+  if(ampm==='am'){
+    sM=pT(getTimeSel('sel-am-s'));eM=pT(getTimeSel('sel-am-e'));
+    customTime=getTimeSel('sel-am-s')+'〜'+getTimeSel('sel-am-e');
+  }else{
+    sM=pT(getTimeSel('sel-pm-s'));eM=pT(getTimeSel('sel-pm-e'));
+    customTime=getTimeSel('sel-pm-s')+'〜'+getTimeSel('sel-pm-e');
+  }
+  if(!sM||!eM){alert('時間を選んでください');return;}
+  document.querySelectorAll('.time-choice').forEach(function(b){b.disabled=true;});
+  document.getElementById('m-msg').innerHTML='<span style="color:#888">⏳ 登録中...</span>';
+  var key=ds+'-'+ampm+'-g'+g.id;
+  REG[key]={start:sM,end:eM,gardenName:g.name,date:ds,ampm:ampm,customTime:customTime,day:dj,time:customTime};
+  svReg();
+  setTimeout(function(){
+    document.getElementById('m-msg').innerHTML='<span style="color:var(--green)">✅ 登録しました！</span>';
+    setTimeout(function(){closeModal();renderCal();},900);
+  },500);
+}
+
+/* ── 一覧 ── */
+function renderList(){
+  var el=document.getElementById('list-body');
+  if(!DB.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><p style="font-size:15px;color:#CCC">まだ登録されていません</p></div>';return;}
+  el.innerHTML=DB.map(function(g){
+    var t=[];if(g.morning)t.push('午前: '+g.morning);if(g.afternoon)t.push('午後: '+g.afternoon);
+    var ngHtml='';
+    if(g.ngList&&g.ngList.length){
+      ngHtml='<div style="margin-top:8px">'+g.ngList.map(function(n){
+        var times=Object.keys(n.dayTimes||{}).map(function(d){
+          var dt=n.dayTimes[d];return'<span class="ng-tag">🚫 '+d+'曜'+(dt.s&&dt.e?' '+dt.s+'〜'+dt.e:'')+'</span>';
+        }).join('');
+        return(n.name?'<span style="font-size:11px;color:#888">('+esc(n.name)+')</span>':'')+times;
+      }).join('')+'</div>';
+    }
+    return'<div class="list-item">'
+      +'<div class="list-head">'
+      +'<div style="display:flex;align-items:center;gap:10px"><span style="font-size:26px">'+g.emoji+'</span>'
+      +'<div style="font-size:16px;font-weight:800">'+esc(g.name)+'</div></div>'
+      +'<div class="list-actions"><button class="btn-edit" onclick="openEdit('+g.id+')">✏️ 修正</button>'
+      +'<button class="btn-delete" onclick="deleteGarden('+g.id+')">🗑 削除</button></div></div>'
+      +(g.addr?'<div style="font-size:12px;color:#888;margin-bottom:5px">📝 '+esc(g.addr)+'　🚗 '+g.travel+'分</div>':'')
+      +'<div style="font-size:13px;color:#555">受入: '+g.days.join('・')+'曜　'+t.join('　')+'</div>'
+      +ngHtml+'</div>';
+  }).join('');
+}
+
+/* ── 予定一覧 ── */
+function renderSched(){
+  var el=document.getElementById('sched-body');
+  var keys=Object.keys(REG);
+  if(!keys.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><p style="font-size:15px;color:#CCC">登録済みの予定はありません</p></div>';return;}
+  keys.sort(function(a,b){return a<b?-1:1;});
+  var html='';
+  keys.forEach(function(k){
+    var r=REG[k];
+    html+='<div class="sched-item">'
+      +'<div><div style="font-size:15px;font-weight:800">'+esc(r.date)+'（'+esc(r.day)+'）</div>'
+      +'<div style="font-size:14px;margin-top:3px">'+(r.ampm==='am'?'🌅':'🌇')+' '+esc(r.customTime||r.time)+'</div>'
+      +'<div style="font-size:12px;color:#888;margin-top:2px">🏫 '+esc(r.gardenName)+'</div></div>'
+      +'<button class="btn-del-sched" onclick="deleteSched(\''+k+'\')">✕</button>'
+      +'</div>';
+  });
+  el.innerHTML=html;
+}
+function deleteSched(key){
+  if(!confirm('この予定を削除しますか？\nカレンダーに候補日として復活します。'))return;
+  delete REG[key];svReg();renderSched();renderCal();
+}
+
+/* ── 初期化 ── */
+if(!DB.length){
+  DB=[
+    {id:1,name:'さくら幼稚園',addr:'担当：山田先生',travel:15,days:['月','水','金'],morning:'09:30-11:00',afternoon:'13:00-14:30',
+     ngList:[{name:'ぐるんぱ児発',days:['水'],dayTimes:{水:{s:'09:30',e:'11:00'}}}],emoji:'🌸'},
+    {id:2,name:'ひまわり保育園',addr:'',travel:20,days:['月','火','水','木','金'],morning:'10:00-11:30',afternoon:null,
+     ngList:[{name:'レインボー児発',days:['火'],dayTimes:{火:{s:'10:00',e:'11:30'}}}],emoji:'🌻'},
+    {id:3,name:'あおぞら保育園',addr:'担当：鈴木先生',travel:30,days:['火','木'],morning:null,afternoon:'14:00-15:30',
+     ngList:[{name:'スマイル放デイ',days:['木'],dayTimes:{木:{s:'14:00',e:'15:30'}}}],emoji:'☁️'}
+  ];svDB();
+}
+renderChips();renderCal();buildAllTimeSelectors();
+</script>
+</body>
+</html>
