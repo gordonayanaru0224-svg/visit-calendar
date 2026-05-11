@@ -307,8 +307,32 @@ textarea.import-area{width:100%;height:120px;font-size:11px;font-family:monospac
 
 <script>
 var DB=[];var REG={};
-try{DB=JSON.parse(localStorage.getItem('vm_v8_db')||'[]');}catch(e){}
-try{REG=JSON.parse(localStorage.getItem('vm_v8_reg')||'{}');}catch(e){}
+// 旧バージョンのキーから順番にデータを引き継ぐ
+var OLD_KEYS=['vm_v7_db','vm_v6_db','vm_v5_db','vm_db','vc6_db','vg_db','vg2_db'];
+var OLD_REG_KEYS=['vm_v7_reg','vm_v6_reg','vm_v5_reg','vm_reg','vc6_reg','vg_reg','vg2_reg'];
+
+try{
+  var saved=localStorage.getItem('vm_v8_db');
+  if(saved){DB=JSON.parse(saved);}
+  else{
+    // 旧バージョンのデータを探して移行
+    for(var ki=0;ki<OLD_KEYS.length;ki++){
+      var old=localStorage.getItem(OLD_KEYS[ki]);
+      if(old){DB=JSON.parse(old);localStorage.setItem('vm_v8_db',old);break;}
+    }
+  }
+}catch(e){}
+
+try{
+  var savedReg=localStorage.getItem('vm_v8_reg');
+  if(savedReg){REG=JSON.parse(savedReg);}
+  else{
+    for(var ki=0;ki<OLD_REG_KEYS.length;ki++){
+      var oldReg=localStorage.getItem(OLD_REG_KEYS[ki]);
+      if(oldReg){REG=JSON.parse(oldReg);localStorage.setItem('vm_v8_reg',oldReg);break;}
+    }
+  }
+}catch(e){}
 var SEL=null;
 var UI={y:new Date().getFullYear(),m:new Date().getMonth()};
 var DJ=['日','月','火','水','木','金','土'];
